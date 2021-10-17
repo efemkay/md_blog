@@ -1,0 +1,69 @@
+---
+title: "Dividend Champions"
+author: "Faiz MK"
+date: "10/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#load libraries
+library(dplyr)
+library(readr)
+library(lubridate)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r load_data}
+# load & format data
+df_raw = read_csv("./datasets/AllShariahQuarter_2021-08-07.csv", 
+              col_types = cols(F.Y. = col_datetime(format = "%d-%b-%y"),
+                               `Ann. Date` = col_datetime(format = "%d-%b-%y"),
+                               Quarter = col_datetime(format = "%d-%b-%y"),
+                               `#` = col_integer())
+              )
+
+# create a CY and subset only to required columns
+df = df_raw %>%
+  mutate(CY = year(Quarter)) %>%
+  subset(select = c(sname, scode, CY, Revenue, PBT, NP, `NP to SH`, Div, `Net Worth`, NOSH))
+# selectively rectify figures columns with comma (,)
+ix = c(4:10)    # index of numerical columns
+df[,ix] = lapply(df[,ix], FUN=function(x) gsub(",", "", as.character(x)))
+df[,ix] = lapply(df[,ix], FUN=function(x) gsub("-", 0, as.character(x)))
+df[,ix] = lapply(df[,ix], FUN=function(x) as.numeric(as.character(x)))
+
+```
+
+
+## Summarised Data
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+
+df_plot = df %>%
+  group_by(sname, scode, CY) %>%
+  summarise(Revenue = sum(Revenue),
+            PBT = sum(PBT),
+            NP = sum(NP),
+            NPtoSH = sum(`NP to SH`),
+            Div = sum(Div),
+            NetWorth = sum(`Net Worth`),
+            NOSH = mean(NOSH)
+            ) %>%
+  mutate(DivCagr9 = ((Div / lag(Div, n=9, default=0))^(1/9)-1)*100,
+         DivSlip = as.numeric(Div < lag(Div, n=1, default=0)),
+         DivSlipCount = DivSlip + lag(DivSlip, n=1, default=0)
+         ) %>%
+  filter(max(DivSlipCount)<2 & CY==2020 & DivCagr9>0 & DivCagr9<999)
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
